@@ -1,82 +1,137 @@
 /*
- REQUIRES the following Arduino libraries:
- - DHT Sensor Library: https://github.com/adafruit/DHT-sensor-library
- - Adafruit Unified Sensor Lib: https://github.com/adafruit/Adafruit_Sensor
- - LiquidCrystal.h 
+  REQUIRES the following Arduino libraries:
+  - DHT Sensor Library: https://github.com/adafruit/DHT-sensor-library
+  - Adafruit Unified Sensor Lib: https://github.com/adafruit/Adafruit_Sensor
+  - LiquidCrystal.h
 */
 
-#define DHTPIN 13                 // Digital pin connected to the DHT sensor
-#define DHTTYPE DHT11             // DHT 11
-#define desiredTemperatureInit 26 // Set initial value of Desired Temperature
-#define sigPin 10                 // Signal Pin of Relay (for heather/cooler)
-#define trimmerPin A0              // Signal from potentiometer
+#define DHTBOX_PIN 8                 // Digital pin connected to the DHT sensor (box)
+#define DHTENV_PIN 7                 // Digital pin connected to the DHT sensor (enviroment)
+#define DHTTYPE DHT11                // DHT 11
+#define POWER_PIN 10                 // Signal Pin of Relay for power
+#define HOTCOLD_PIN 9               // Signal Pin of Relay for heather/cooler (polarization)
+#define TRIMMER_PIN A0               // Signal from potentiometer (set)
+#define TOLLERANCE 1.0                 // Tollerance for temperature set
+#define DELAY_TIME 500
 
 #include "DHT.h"
 #include <LiquidCrystal.h>
-DHT dht(DHTPIN, DHTTYPE);
+DHT dht_box(DHTBOX_PIN, DHTTYPE);
+DHT dht_env(DHTENV_PIN, DHTTYPE);
 
 //Display
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 
-//Buttons
-int buttonState = 0;
-int desiredTemperature = desiredTemperatureInit;  
+int count = 0;
+float desiredTemperature = 0;
+String currentStatus = "";
 
 void setup() {
   Serial.begin(9600);
-  pinMode(sigPin, OUTPUT); 
-  dht.begin();
+  pinMode(POWER_PIN, OUTPUT);
+  pinMode(HOTCOLD_PIN, OUTPUT);
+  dht_box.begin();
+  dht_env.begin();
   lcd.begin(16, 2);
-  lcd.print("DibeProofBox0.1");
+  lcd.print("DibeProofingBox");
+  lcd.setCursor(0, 1);
+  lcd.print("Version 1.0");
+  delay(DELAY_TIME);
 }
 
 void loop() {
-  delay(500);
-  int h = dht.readHumidity();
-  double t = dht.readTemperature();
+  count++;
+  delay(DELAY_TIME);
+  double t_box = dht_box.readTemperature();
+  int h_box = dht_box.readHumidity();
+  double t_env = dht_env.readTemperature();
+  int h_env = dht_env.readHumidity();
 
   // Check if any reads failed and exit early (to try again).
-  if (isnan(h) || isnan(t)) {
-    Serial.println(F("Failed to read from DHT sensor!"));
+  if (isnan(h_box) || isnan(t_box)) {
+    Serial.println("Sensor BOX ERROR! ");
+    lcd.setCursor(0, 0);
+    lcd.print("Sensor BOX ERROR! ");
+    lcd.setCursor(0, 1);
+    lcd.print("                  ");
+    return;
+  }
+  
+  // Check if any reads failed and exit early (to try again).
+  if (isnan(h_env) || isnan(t_env)) {
+    Serial.println("Sensor ENV ERROR! ");
+    lcd.setCursor(0, 0);
+    lcd.print("Sensor ENV ERROR! ");
+    lcd.setCursor(0, 1);
+    lcd.print("                  ");
     return;
   }
 
-  //formatting temperature float
-  char tF[6]; 
-  dtostrf(t, 2, 1, tF);
-  
-  Serial.print(F(" H: "));
-  Serial.print(h);
-  Serial.print(F("%  T: "));
-  Serial.print(tF);
-  Serial.println(F("°C"));
-  
+  //Line 1
+  char tF_box[6];
+  dtostrf(t_box, 2, 1, tF_box);
+  char tF_env[6];
+  dtostrf(t_env, 2, 1, tF_env);
+  String t_init = "";
+  String line_1_a = t_init  + "Box: " + tF_box + (char)223 +" (" + h_box + "%)";
+  String line_1_b = t_init  + "Env: " + tF_env + (char)223 +" (" + h_env + "%)";
   lcd.setCursor(0, 0);
-  //lcd.print(F("                   "));
-  lcd.print(F("T: "));
-  lcd.print(tF);
-  //lcd.print(char(176));
-  lcd.print("C ");
-  lcd.print(F("H: "));
-  lcd.print(h);
-  lcd.print("%  ");
+  lcd.print(line_1_a);
+  lcd.print(line_1_b);
+  //Show the Environment temperature every now and then
+  if (count > 20 && count <= 24) {  
+    lcd.setCursor(0, 0);
+    lcd.print(line_1_b);
+    if (count >= 24) count = 0;
+  }
 
-
-  // set the cursor to column 0, line 1
-  int sensorValue = analogRead(trimmerPin);
+  //Line 2
+  Serial.println(line_1_a);
   lcd.setCursor(0, 1);
-  desiredTemperature = 0.025 * sensorValue+7;  //range between 7 and 32
+  int sensorValue = analogRead(TRIMMER_PIN);
+  Serial.println(sensorValue);
+  desiredTemperature = 0.025 * sensorValue + 7; //range between 7 and 32
+  Serial.println(desiredTemperature);
+  char tF_desidered[6];
+  dtostrf(desiredTemperature, 2, 1, tF_desidered);
+  String line_2 = t_init + "Desired: " + tF_desidered + (char)223;
 
-  lcd.print("Desired  T: ");
-  lcd.print(desiredTemperature);
-  lcd.print("C  ");
-  
 
-  if (t < desiredTemperature) {
-    digitalWrite(sigPin, HIGH);//play
+  if (t_box < desiredTemperature - TOLLERANCE || t_box > desiredTemperature + TOLLERANCE ) {
+    Serial.println("Power enabled");
+    
+    if (t_box < desiredTemperature - TOLLERANCE) {
+      if (currentStatus == "cooling") {
+        digitalWrite(POWER_PIN, LOW); 
+        delay(DELAY_TIME/2); 
+      }
+      Serial.println("Heating");
+      digitalWrite(HOTCOLD_PIN, LOW); //heating
+      delay(DELAY_TIME/4); 
+      digitalWrite(POWER_PIN, HIGH);
+      line_2 += " H  ";
+      currentStatus = "heating";
+    }
+    if (t_box > desiredTemperature - TOLLERANCE) {
+      if (currentStatus == "heating") {
+        digitalWrite(POWER_PIN, LOW); 
+        delay(DELAY_TIME/2);
+      }
+      Serial.println("Cooling");
+      digitalWrite(HOTCOLD_PIN, HIGH); //cooling
+      delay(DELAY_TIME/4); 
+      digitalWrite(POWER_PIN, HIGH); 
+      line_2 += " C  ";
+      currentStatus = "cooling";
+    }
   }
   else {
-    digitalWrite(sigPin, LOW);//play
-  }  
+    Serial.println("Maintaining");
+    digitalWrite(POWER_PIN, LOW);
+    digitalWrite(HOTCOLD_PIN, LOW);
+    line_2 += " M  ";
+    currentStatus = "maintaining";
+  }
+  lcd.print(line_2);
 }
