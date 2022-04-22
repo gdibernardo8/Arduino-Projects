@@ -11,7 +11,7 @@
 #define POWER_PIN 10                 // Signal Pin of Relay for power
 #define HOTCOLD_PIN 9               // Signal Pin of Relay for heather/cooler (polarization)
 #define TRIMMER_PIN A0               // Signal from potentiometer (set)
-#define TOLLERANCE 1.0                 // Tollerance for temperature set
+#define TOLLERANCE 0.3                 // Tollerance for temperature set
 #define DELAY_TIME 500
 
 #include "DHT.h"
@@ -36,12 +36,14 @@ void setup() {
   lcd.begin(16, 2);
   lcd.print("DibeProofingBox");
   lcd.setCursor(0, 1);
-  lcd.print("Version 1.0");
+  lcd.print("Version 1.1");
   delay(DELAY_TIME);
 }
 
 void loop() {
   count++;
+  delay(DELAY_TIME);
+  delay(DELAY_TIME);
   delay(DELAY_TIME);
   double t_box = dht_box.readTemperature();
   int h_box = dht_box.readHumidity();
@@ -91,7 +93,7 @@ void loop() {
   lcd.setCursor(0, 1);
   int sensorValue = analogRead(TRIMMER_PIN);
   Serial.println(sensorValue);
-  desiredTemperature = 0.025 * sensorValue + 7; //range between 7 and 32
+  desiredTemperature = 0.018 * sensorValue + 10; //range between 7 and 32
   Serial.println(desiredTemperature);
   char tF_desidered[6];
   dtostrf(desiredTemperature, 2, 1, tF_desidered);
@@ -113,7 +115,8 @@ void loop() {
       line_2 += " H  ";
       currentStatus = "heating";
     }
-    if (t_box > desiredTemperature - TOLLERANCE) {
+    // start cooling only if desiredTemperature < t_env
+    if (t_box > desiredTemperature - TOLLERANCE && desiredTemperature < t_env) {
       if (currentStatus == "heating") {
         digitalWrite(POWER_PIN, LOW); 
         delay(DELAY_TIME/2);
@@ -125,6 +128,14 @@ void loop() {
       line_2 += " C  ";
       currentStatus = "cooling";
     }
+    if (t_box > desiredTemperature - TOLLERANCE && desiredTemperature >= t_env) {
+      Serial.println("Keeping");
+      digitalWrite(POWER_PIN, LOW);
+      digitalWrite(HOTCOLD_PIN, LOW);
+      line_2 += " K ";
+      currentStatus = "keeping";
+    }
+    
   }
   else {
     Serial.println("Maintaining");
