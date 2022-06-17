@@ -109,7 +109,7 @@ void loop() {
         delay(DELAY_TIME/2); 
       }
       Serial.println("Heating");
-      digitalWrite(HOTCOLD_PIN, LOW); //heating
+      digitalWrite(HOTCOLD_PIN, HIGH); //heating
       delay(DELAY_TIME/4); 
       digitalWrite(POWER_PIN, HIGH);
       line_2 += " H  ";
@@ -122,7 +122,7 @@ void loop() {
         delay(DELAY_TIME/2);
       }
       Serial.println("Cooling");
-      digitalWrite(HOTCOLD_PIN, HIGH); //cooling
+      digitalWrite(HOTCOLD_PIN, LOW); //cooling
       delay(DELAY_TIME/4); 
       digitalWrite(POWER_PIN, HIGH); 
       line_2 += " C  ";
