@@ -36,7 +36,7 @@ void setup() {
   lcd.begin(16, 2);
   lcd.print("DibeProofingBox");
   lcd.setCursor(0, 1);
-  lcd.print("Version 1.1");
+  lcd.print("Version 1.2");
   delay(DELAY_TIME);
 }
 
@@ -100,16 +100,14 @@ void loop() {
   String line_2 = t_init + "Desired: " + tF_desidered + (char)223;
 
 
-  if (t_box < desiredTemperature - TOLLERANCE || t_box > desiredTemperature + TOLLERANCE ) {
-    Serial.println("Power enabled");
-    
-    if (t_box < desiredTemperature - TOLLERANCE) {
+  if (t_box <= desiredTemperature - TOLLERANCE || t_box > desiredTemperature + TOLLERANCE ) {
+    if (t_box <= desiredTemperature - TOLLERANCE && desiredTemperature < t_env) {
       if (currentStatus == "cooling") {
         digitalWrite(POWER_PIN, LOW); 
         delay(DELAY_TIME/2); 
       }
       Serial.println("Heating");
-      digitalWrite(HOTCOLD_PIN, HIGH); //heating
+      digitalWrite(HOTCOLD_PIN, HIGH);
       delay(DELAY_TIME/4); 
       digitalWrite(POWER_PIN, HIGH);
       line_2 += " H  ";
@@ -122,20 +120,20 @@ void loop() {
         delay(DELAY_TIME/2);
       }
       Serial.println("Cooling");
-      digitalWrite(HOTCOLD_PIN, LOW); //cooling
+      digitalWrite(HOTCOLD_PIN, LOW);
       delay(DELAY_TIME/4); 
       digitalWrite(POWER_PIN, HIGH); 
       line_2 += " C  ";
       currentStatus = "cooling";
     }
-    if (t_box > desiredTemperature - TOLLERANCE && desiredTemperature >= t_env) {
+    // start heating only if desiredTemperature > t_env
+    if (t_box <= desiredTemperature - TOLLERANCE && desiredTemperature >= t_env) {
       Serial.println("Keeping");
       digitalWrite(POWER_PIN, LOW);
       digitalWrite(HOTCOLD_PIN, LOW);
       line_2 += " K ";
       currentStatus = "keeping";
     }
-    
   }
   else {
     Serial.println("Maintaining");
